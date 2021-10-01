@@ -120,13 +120,13 @@ class CMakeBuild(build_ext):
         )
 
 setup(
-    name="robot_interface",
+    name="legged_sdk",
     version="0.0.1",
     author="",
     author_email="",
     description="",
     long_description="",
-    ext_modules=[CMakeExtension('robot_interface')],
+    ext_modules=[CMakeExtension('legged_sdk')],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
 )
