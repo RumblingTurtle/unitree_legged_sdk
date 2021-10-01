@@ -12,13 +12,17 @@ Use of this source code is governed by the MPL-2.0 license, see LICENSE.
 
 using namespace UNITREE_LEGGED_SDK;
 
-class RobotInterface
+
+
+class LowLevelInterface
 {
 public:
-    RobotInterface() : safe(LeggedType::A1), udp(LOWLEVEL){
+    LowLevelInterface() : safe(LeggedType::A1), udp(LOWLEVEL)
+    {
         // InitEnvironment();
     }
-    LowState ReceiveObservation();
+    LowState ReceiveState();
+
     void SendCommand(std::array<float, 60> motorcmd);
     void Initialize();
 
@@ -26,17 +30,22 @@ public:
     Safety safe;
     LowState state = {0};
     LowCmd cmd = {0};
+
+
 };
 
-LowState RobotInterface::ReceiveObservation() {
+LowState LowLevelInterface::ReceiveState()
+{
     udp.Recv();
     udp.GetRecv(state);
     return state;
 }
 
-void RobotInterface::SendCommand(std::array<float, 60> motorcmd) {
+void LowLevelInterface::SendCommand(std::array<float, 60> motorcmd)
+{
     cmd.levelFlag = 0xff;
-    for (int motor_id = 0; motor_id < 12; motor_id++) {
+    for (int motor_id = 0; motor_id < 12; motor_id++)
+    {
         cmd.motorCmd[motor_id].mode = 0x0A;
         cmd.motorCmd[motor_id].q = motorcmd[motor_id * 5];
         cmd.motorCmd[motor_id].Kp = motorcmd[motor_id * 5 + 1];
@@ -49,15 +58,68 @@ void RobotInterface::SendCommand(std::array<float, 60> motorcmd) {
     udp.Send();
 }
 
+
+
+
+class HighLevelInterface
+{
+public:
+    HighLevelInterface() : safe(LeggedType::A1), udp(HIGHLEVEL)
+    {
+        // InitEnvironment();
+    }
+    HighState ReceiveState();
+
+    void SendCommand(std::array<float, 10> highcmd);
+
+    void Initialize();
+
+    UDP udp;
+    Safety safe;
+    HighState state = {0};
+    HighCmd cmd = {0};
+
+};
+
+
+
+HighState HighLevelInterface::ReceiveState()
+{
+    // udp.Recv();
+    udp.Recv();
+    udp.GetRecv(state);
+    return state;
+}
+
+
+void HighLevelInterface::SendCommand(std::array<float, 10> highcmd)
+{
+    cmd.levelFlag = 0x00;
+    cmd.mode = highcmd[0];
+    cmd.forwardSpeed = highcmd[1];
+    cmd.sideSpeed = highcmd[2];
+    cmd.rotateSpeed = highcmd[3];
+    cmd.bodyHeight = highcmd[4];
+    // cmd.footRaiseHeight = highcmd[5];
+    cmd.yaw = highcmd[6];
+    cmd.pitch = highcmd[7];
+    cmd.roll = highcmd[8];
+
+    udp.SetSend(cmd);
+    udp.Send();
+}
+
+
 namespace py = pybind11;
 
 // TODO: Expose all of comm.h and the RobotInterface Class.
 
-PYBIND11_MODULE(robot_interface, m) {
+PYBIND11_MODULE(legged_sdk, m)
+{
     m.doc() = R"pbdoc(
           A1 Robot Interface Python Bindings
           -----------------------
-          .. currentmodule:: a1_robot_interface
+          .. currentmodule:: legged_sdk
           .. autosummary::
              :toctree: _generate
       )pbdoc";
@@ -191,17 +253,22 @@ PYBIND11_MODULE(robot_interface, m) {
         .def_readwrite("RecvCRCError", &UDPState::RecvCRCError)
         .def_readwrite("RecvLoseError", &UDPState::RecvLoseError);
 
-    py::class_<RobotInterface>(m, "RobotInterface")
+    py::class_<LowLevelInterface>(m, "LowLevelInterface")
         .def(py::init<>())
-        .def("receive_observation", &RobotInterface::ReceiveObservation)
-        .def("send_command", &RobotInterface::SendCommand);
+        .def("receive", &LowLevelInterface::ReceiveState)
+        .def("send", &LowLevelInterface::SendCommand);
 
-    #ifdef VERSION_INFO
-      m.attr("__version__") = VERSION_INFO;
-    #else
-      m.attr("__version__") = "dev";
-    #endif
+    py::class_<HighLevelInterface>(m, "HighLevelInterface")
+        .def(py::init<>())
+        .def("receive", &HighLevelInterface::ReceiveState)
+        .def("send", &HighLevelInterface::SendCommand);
 
-      m.attr("TEST") = py::int_(int(42));
 
+#ifdef VERSION_INFO
+    m.attr("__version__") = VERSION_INFO;
+#else
+    m.attr("__version__") = "dev";
+#endif
+
+    m.attr("TEST") = py::int_(int(42));
 }
